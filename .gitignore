@@ -1,0 +1,13 @@
+# build output
+out/
+out-test/
+*.class
+
+# editors and IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.DS_Store
