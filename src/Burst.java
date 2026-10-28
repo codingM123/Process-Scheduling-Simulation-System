@@ -1,43 +1,38 @@
 /**
-  Represents a CPU or I/O burst in a process lifecycle.
-  Each burst has a type, required time, and current progress.
+ * One burst in a process's life: either CPU work or an I/O operation.
  */
-public class Burst implements Cloneable {
+public class Burst {
 
-	// 'true' indicates CPU burst, 'false' for I/O burst
-	boolean type;
-	int timeNeeded;  // Total time required for this burst
-	int timeWorked;  // Time already executed on this burst
+    final boolean isCpu;   // true = CPU burst, false = I/O burst
+    final int duration;    // total length in time units
+    int remaining;         // time units still left to do
 
-	/**
-	 * Initializes a burst with its type and required time.
-	 * @param type - burst type (CPU or I/O)
-	 * @param timeNeeded - total time required for completion
-	 * @param timeWorked - initial progress on this burst (usually 0)
-	 */
-	public Burst(boolean type, int timeNeeded, int timeWorked) {
-		super();
-		this.type = type;
-		this.timeNeeded = timeNeeded;
-		this.timeWorked = timeWorked;
-	}
+    public Burst(boolean isCpu, int duration) {
+        if (duration <= 0) {
+            throw new IllegalArgumentException("a burst must last at least 1 time unit");
+        }
+        this.isCpu = isCpu;
+        this.duration = duration;
+        this.remaining = duration;
+    }
 
-	/**
-	 * Simulates work done on the burst for a given time unit.
-	 * Decreases remaining time and updates work progress.
-	 * @param timeUnit - time units to apply as work
-	 */
-	public void applyWork(int timeUnit) {
-		timeNeeded -= timeUnit;
-		timeWorked += timeUnit;
-	}
+    /** Does one time unit of work on this burst. */
+    void work() {
+        remaining--;
+    }
 
-	/**
-	 * Creates a duplicate of this Burst object.
-	 * Useful for deep-copying bursts in scheduling simulations.
-	 */
-	@Override
-	protected Object clone() throws CloneNotSupportedException {
-		return super.clone();
-	}
+    boolean isDone() {
+        return remaining == 0;
+    }
+
+    Burst copy() {
+        Burst b = new Burst(isCpu, duration);
+        b.remaining = remaining;
+        return b;
+    }
+
+    @Override
+    public String toString() {
+        return (isCpu ? "CPU(" : "IO(") + duration + ")";
+    }
 }

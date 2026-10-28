@@ -1,11 +1,17 @@
 import java.util.Comparator;
 
-public class ProcessExpAverageSorter implements Comparator<Object> {
+/**
+ * SJF with prediction: the process with the shortest predicted next CPU burst (tau) comes first.
+ * Ties go to the process that has been in the ready queue longest.
+ */
+public class ProcessExpAverageSorter implements Comparator<Process> {
 
-	@Override
-	public int compare(Object first, Object second) {
-		Process processOne = (Process) first;
-		Process processTwo = (Process) second;
-		return Double.compare(processOne.getExpAveraging(), processTwo.getExpAveraging());
-	}
+    @Override
+    public int compare(Process a, Process b) {
+        int byPrediction = Double.compare(a.tau, b.tau);
+        if (byPrediction != 0) {
+            return byPrediction;
+        }
+        return Long.compare(a.readySeq, b.readySeq);
+    }
 }

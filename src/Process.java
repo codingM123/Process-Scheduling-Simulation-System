@@ -1,98 +1,106 @@
-import java.util.ArrayList;
+/**
+ * A simulated process: an arrival time, a priority and a list of CPU and I/O bursts.
+ * It also holds the bookkeeping that a scheduler fills in while the process runs.
+ */
+public class Process {
 
-public class Process implements Cloneable {
+    final int pid;
+    final int arrivalTime;
+    final int priority;          // lower number = higher priority
+    final Burst[] bursts;
 
-	int processId; // Unique Process ID
-	static int idCounter = 0;
-	int priority;
-	int arrivalTime;
-	Burst[] bursts;
-	int currentBurstIndex;
-	int totalTimeInSystem;
-	int totalWaitingTime;
-	int burstRemainingTime;
-	int tempBurstIndex;
-	double estimatedTau;
-	double smoothingFactor;
-	int cpuBurstSumHolder;
+    int burstIndex;              // which burst the process is on
+    double tau;                  // predicted length of the next CPU burst (exponential averaging)
 
-	public Process(int priority, int arrivalTime, Burst[] bursts, int initialTau) {
-		this.priority = priority;
-		this.arrivalTime = arrivalTime;
-		this.bursts = bursts;
-		this.processId = idCounter++;
-		this.estimatedTau = initialTau;
-	}
+    // Filled in during a simulation
+    long readySeq;               // when it last entered the ready queue (keeps FIFO order)
+    int admittedTime = -1;       // when it left the job queue
+    int firstRunTime = -1;       // first time it got the CPU
+    int completionTime = -1;
+    int waitingTime;             // time in the system spent neither running nor doing I/O
 
-	public Burst getActiveBurst() {
-		return bursts[currentBurstIndex];
-	}
+    public Process(int pid, int arrivalTime, int priority, Burst[] bursts, double initialTau) {
+        if (arrivalTime < 0) {
+            throw new IllegalArgumentException("arrival time cannot be negative");
+        }
+        if (bursts == null || bursts.length == 0) {
+            throw new IllegalArgumentException("a process needs at least one burst");
+        }
+        this.pid = pid;
+        this.arrivalTime = arrivalTime;
+        this.priority = priority;
+        this.bursts = bursts;
+        this.tau = initialTau;
+    }
 
-	public void reduceIOBurst() {
-		bursts[currentBurstIndex].applyWork(1);
-	}
+    /** A process with a single CPU burst, as in most textbook examples. */
+    static Process withOneBurst(int pid, int arrivalTime, int priority, int cpuBurst, double initialTau) {
+        return new Process(pid, arrivalTime, priority, new Burst[] { new Burst(true, cpuBurst) }, initialTau);
+    }
 
-	public void reduceCPUBurst() {
-		if (currentBurstIndex < bursts.length && bursts[currentBurstIndex].type) {
-			if (bursts[currentBurstIndex].timeNeeded > 0) {
-				bursts[currentBurstIndex].applyWork(1);
-				if (bursts[currentBurstIndex].timeNeeded == 0) {
-					currentBurstIndex++;
-					if (currentBurstIndex < bursts.length && !bursts[currentBurstIndex].type) {
-						updateTauAfterBurst();
-					}
-				}
-			}
-		}
-	}
+    Burst currentBurst() {
+        return bursts[burstIndex];
+    }
 
-	public boolean isOnCPU() {
-		return currentBurstIndex < bursts.length && bursts[currentBurstIndex].type;
-	}
+    void nextBurst() {
+        burstIndex++;
+    }
 
-	public int computeRemainingCPUBurstTime() {
-		System.out.println("Calculating remaining CPU time for Process " + processId);
+    boolean isFinished() {
+        return burstIndex >= bursts.length;
+    }
 
-		int total = 0;
-		tempBurstIndex = currentBurstIndex;
-		while (tempBurstIndex < bursts.length && bursts[tempBurstIndex].type) {
-			total += bursts[tempBurstIndex].timeNeeded;
-			tempBurstIndex++;
-		}
-		System.out.println("Total remaining CPU burst time for Process " + processId + ": " + total);
-		cpuBurstSumHolder = total;
-		return total;
-	}
+    int totalCpuTime() {
+        int sum = 0;
+        for (Burst b : bursts) {
+            if (b.isCpu) {
+                sum += b.duration;
+            }
+        }
+        return sum;
+    }
 
-	public double calculateExponentialAverage() {
-		System.out.println("Exponential Averaging for Process " + processId);
-		return estimatedTau * smoothingFactor + (1 - smoothingFactor) * computeRemainingCPUBurstTime();
-	}
+    int totalIoTime() {
+        int sum = 0;
+        for (Burst b : bursts) {
+            if (!b.isCpu) {
+                sum += b.duration;
+            }
+        }
+        return sum;
+    }
 
-	public void updateTauAfterBurst() {
-		System.out.println("Previous Burst Sum: " + cpuBurstSumHolder);
-		estimatedTau = estimatedTau * smoothingFactor + (1 - smoothingFactor) * cpuBurstSumHolder;
-		System.out.println("Updated Tau for Process " + processId + ": " + estimatedTau);
-	}
+    int turnaroundTime() {
+        return completionTime - arrivalTime;
+    }
 
-	public void resetBurstIndex() {
-		currentBurstIndex = tempBurstIndex;
-	}
+    int responseTime() {
+        return firstRunTime - arrivalTime;
+    }
 
-	@Override
-	public String toString() {
-		return "Arrival Time: " + arrivalTime;
-	}
+    String name() {
+        return "P" + pid;
+    }
 
-	@Override
-	protected Object clone() throws CloneNotSupportedException {
-		Process clonedProcess = (Process) super.clone();
-		clonedProcess.bursts = new Burst[bursts.length];
+    String burstList() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < bursts.length; i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(bursts[i]);
+        }
+        return sb.toString();
+    }
 
-		for (int i = 0; i < bursts.length; i++) {
-			clonedProcess.bursts[i] = (Burst) bursts[i].clone();
-		}
-
-		return clonedProcess;
-	}
+    /** Deep copy, so every algorithm runs on the same untouched workload. */
+    Process copy() {
+        Burst[] copied = new Burst[bursts.length];
+        for (int i = 0; i < bursts.length; i++) {
+            copied[i] = bursts[i].copy();
+        }
+        Process p = new Process(pid, arrivalTime, priority, copied, tau);
+        p.burstIndex = burstIndex;
+        return p;
+    }
 }

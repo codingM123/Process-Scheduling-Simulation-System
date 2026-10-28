@@ -1,11 +1,13 @@
 import java.util.Comparator;
 
-public class ProcessArrivalSorter implements Comparator<Object> {
+/** Order of the job queue: earliest arrival first, then lowest process id. */
+public class ProcessArrivalSorter implements Comparator<Process> {
 
-	@Override
-	public int compare(Object first, Object second) {
-		Process processOne = (Process) first;
-		Process processTwo = (Process) second;
-		return Integer.compare(processOne.arrivalTime, processTwo.arrivalTime);
-	}
+    @Override
+    public int compare(Process a, Process b) {
+        if (a.arrivalTime != b.arrivalTime) {
+            return Integer.compare(a.arrivalTime, b.arrivalTime);
+        }
+        return Integer.compare(a.pid, b.pid);
+    }
 }
